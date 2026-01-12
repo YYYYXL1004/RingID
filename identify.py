@@ -96,13 +96,16 @@ def main(args):
     pipe = pipe.to(device)
     pipe.set_progress_bar_config(disable=True)
 
-    if args.reference_model is not None and args.reference_model.lower() != 'none':
+    use_clip = args.reference_model is not None and args.reference_model.lower() != 'none'
+    if use_clip:
         ref_model, _, ref_clip_preprocess = open_clip.create_model_and_transforms(
             args.reference_model, 
             pretrained=reference_model_pretrain, 
             device=device
             )
         ref_tokenizer = open_clip.get_tokenizer(args.reference_model)
+    else:
+        ref_model = ref_clip_preprocess = ref_tokenizer = None
 
     dataset, prompt_key = get_dataset(dataset_id)
 
@@ -213,17 +216,18 @@ def main(args):
         ).images
         no_watermark_image, Fourier_watermark_image = generated_images[0], generated_images[1]
 
-        no_watermark_clip, Fourier_watermark_clip = measure_similarity([no_watermark_image, Fourier_watermark_image], this_prompt, ref_model, ref_clip_preprocess, ref_tokenizer, device)
-        quality_metrics.collect('CLIP No Watermark', no_watermark_clip.item())
-        quality_metrics.collect('CLIP Fourier Watermark', Fourier_watermark_clip.item())
+        if use_clip:
+            no_watermark_clip, Fourier_watermark_clip = measure_similarity([no_watermark_image, Fourier_watermark_image], this_prompt, ref_model, ref_clip_preprocess, ref_tokenizer, device)
+            quality_metrics.collect('CLIP No Watermark', no_watermark_clip.item())
+            quality_metrics.collect('CLIP Fourier Watermark', Fourier_watermark_clip.item())
         # quality_metrics.collect('PSNR', peak_signal_noise_ratio(np.array(no_watermark_image), np.array(Fourier_watermark_image)))
         # quality_metrics.collect('SSIM', structural_similarity(np.array(no_watermark_image), np.array(Fourier_watermark_image), channel_axis = 2))
 
         # save generated images
         if args.save_generated_imgs:
-            #no_watermark_image.save(f'./cache/Run{RUN_NAME}_It{experiment_index:4d}_no_watermark.jpg')
-            Fourier_watermark_image.save(os.path.join(save_img_dir, f'Key_{key_index}.Prompt_{prompt_index}.Fourier_watermark.ClipSim_{Fourier_watermark_clip.item():.4f}.jpg'))
-            no_watermark_image.save(os.path.join(save_nowatermark_img_dir, f'Key_{key_index}.Prompt_{prompt_index}.Fourier_watermark.ClipSim_{Fourier_watermark_clip.item():.4f}.jpg'))
+            clip_score_str = f'.ClipSim_{Fourier_watermark_clip.item():.4f}' if use_clip else ''
+            Fourier_watermark_image.save(os.path.join(save_img_dir, f'Key_{key_index}.Prompt_{prompt_index}.Fourier_watermark{clip_score_str}.jpg'))
+            no_watermark_image.save(os.path.join(save_nowatermark_img_dir, f'Key_{key_index}.Prompt_{prompt_index}.no_watermark{clip_score_str}.jpg'))
 
         # Distort
         distorted_image_list = [
