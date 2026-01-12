@@ -9,6 +9,7 @@ import copy
 from typing import Any, Mapping
 import json
 import scipy
+import os
 
 import io
 
@@ -433,7 +434,15 @@ def get_dataset(dataset):
             dataset = dataset['annotations']
             prompt_key = 'caption'
     else:
-        dataset = load_dataset(dataset)['test']
-        prompt_key = 'Prompt'
+        # 优先使用本地 prompts.txt 文件
+        local_prompts_file = './prompts.txt'
+        if os.path.exists(local_prompts_file):
+            with open(local_prompts_file, 'r') as f:
+                prompts = [line.strip() for line in f if line.strip()]
+            dataset = [{'Prompt': p} for p in prompts]
+            prompt_key = 'Prompt'
+        else:
+            dataset = load_dataset(dataset)['test']
+            prompt_key = 'Prompt'
 
     return dataset, prompt_key

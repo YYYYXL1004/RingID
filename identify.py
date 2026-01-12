@@ -96,7 +96,7 @@ def main(args):
     pipe = pipe.to(device)
     pipe.set_progress_bar_config(disable=True)
 
-    if args.reference_model is not None:
+    if args.reference_model is not None and args.reference_model.lower() != 'none':
         ref_model, _, ref_clip_preprocess = open_clip.create_model_and_transforms(
             args.reference_model, 
             pretrained=reference_model_pretrain, 

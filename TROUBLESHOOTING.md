@@ -107,7 +107,88 @@ python -c "from modelscope import snapshot_download; snapshot_download('AI-Model
 
 ---
 
-## 问题 4：（预留）
+## 问题 4：`--reference_model None` 参数无效
+
+### 错误信息
+```
+RuntimeError: Model config for None not found.
+```
+
+### 原因
+`--reference_model None` 被解析为字符串 `"None"` 而不是 Python 的 `None`，代码仍然尝试加载名为 "None" 的模型。
+
+### 解决方法
+
+需要修改 `identify.py` 代码，让它正确处理 `None` 参数。
+
+**修改 `identify.py` 第 99-105 行**：
+
+将：
+```python
+if args.reference_model is not None:
+    ref_model, _, ref_clip_preprocess = open_clip.create_model_and_transforms(
+```
+
+改为：
+```python
+if args.reference_model is not None and args.reference_model.lower() != 'none':
+    ref_model, _, ref_clip_preprocess = open_clip.create_model_and_transforms(
+```
+
+或者直接运行时不传 `--reference_model` 参数，而是修改代码默认跳过 CLIP。
+
+**快速修复命令**（由 AI 助手执行）：
+让 AI 助手帮你修改代码，添加对 `None` 字符串的处理。
+
+---
+
+## 问题 5：无法加载 Prompt 数据集（网络问题）
+
+### 错误信息
+```
+ConnectionError: Couldn't reach 'Gustavosta/stable-diffusion-prompts' on the Hub (ConnectionError)
+```
+
+### 原因
+代码尝试从 HuggingFace Hub 加载 Prompt 数据集，但网络不通。
+
+### 解决方法
+
+**方法 1：使用本地 Prompt 文件（推荐）**
+
+创建一个本地 Prompt 文件，然后修改代码使用它。
+
+1. 创建 `prompts.txt` 文件，每行一个 Prompt：
+```
+a beautiful sunset over the ocean
+a cat sitting on a windowsill
+a futuristic city at night
+a portrait of a woman with flowers
+a mountain landscape with snow
+```
+
+2. 修改 `utils.py` 中的 `get_dataset()` 函数，添加本地文件支持。
+
+**方法 2：在有网络的机器上下载数据集**
+
+在有网络的机器上运行：
+```python
+from datasets import load_dataset
+dataset = load_dataset('Gustavosta/Stable-Diffusion-Prompts')
+dataset.save_to_disk('./sd_prompts_dataset')
+```
+
+然后把 `sd_prompts_dataset` 文件夹拷贝到服务器。
+
+**方法 3：修改代码使用硬编码 Prompt 列表**
+
+修改 `identify.py`，直接使用一个 Prompt 列表而不是从数据集加载。
+
+**快速修复**：让 AI 助手帮你修改代码，创建本地 Prompt 列表。
+
+---
+
+## 问题 6：（预留）
 
 ### 错误信息
 ```
