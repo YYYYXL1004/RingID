@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument('--save_root_dir', type=str, default='./runs')
 
     group = parser.add_argument_group('trials parameters')
-    parser.add_argument('--gpu_id', default=0, type=int)
+    parser.add_argument('--gpu_id', default=7, type=int)
     parser.add_argument('--trials', type=int, default=100, help='total number of trials to run')
     parser.add_argument('--fix_gt', type=int, default=1, help='use watermark after discarding the imag part on space domain as gt.')
     parser.add_argument('--time_shift', type=int, default=1, help='use time-shift')
@@ -80,13 +80,13 @@ def main(args):
     else:
         # run offline
         # require additional checks on the exact cache dir. 
-        pipeline_pretrain = f'{os.path.expanduser("~")}/.cache/huggingface/diffusers/models--stabilityai--stable-diffusion-2-1-base/snapshots/1f758383196d38df1dfe523ddb1030f2bfab7741/'
+        pipeline_pretrain = './models/AI-ModelScope/stable-diffusion-2-1-base'
         reference_model_pretrain = f'{os.path.expanduser("~")}/.cache/huggingface/hub/models--laion--CLIP-ViT-g-14-laion2B-s12B-b42K/snapshots/4b0305adc6802b2632e11cbe6606a9bdd43d35c9/open_clip_pytorch_model.bin'
         dataset_id = 'Gustavosta/stable-diffusion-prompts'
         os.environ["HF_DATASETS_OFFLINE"] = "1"
 
     model_dtype = torch.float16
-    scheduler = DPMSolverMultistepScheduler.from_pretrained(args.model_id, subfolder='scheduler', local_files_only=(not args.online))
+    scheduler = DPMSolverMultistepScheduler.from_pretrained(pipeline_pretrain, subfolder='scheduler', local_files_only=(not args.online))
     pipe = InversableStableDiffusionPipeline.from_pretrained(
         pipeline_pretrain,
         scheduler=scheduler,
