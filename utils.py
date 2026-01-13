@@ -434,14 +434,45 @@ def get_dataset(dataset):
             dataset = dataset['annotations']
             prompt_key = 'caption'
     else:
-        # 优先使用本地 prompts.txt 文件
+        # 优先使用本地数据集
+        local_dataset_dir = './sd_prompts_dataset'
         local_prompts_file = './prompts.txt'
-        if os.path.exists(local_prompts_file):
+        alignment_file = './prompts_for_alignment.txt'
+        
+        if os.path.exists(alignment_file):
+            # 优先使用对齐文件（格式: "索引: Prompt"）
+            with open(alignment_file, 'r') as f:
+                prompts = []
+                for line in f:
+                    line = line.strip()
+                    if line and ':' in line:
+                        # 去掉 "索引: " 前缀
+                        prompt = line.split(':', 1)[1].strip()
+                        prompts.append(prompt)
+            dataset = [{'Prompt': p} for p in prompts]
+            prompt_key = 'Prompt'
+            print(f"[Info] 使用对齐文件: {alignment_file}, 大小: {len(dataset)}")
+        elif os.path.exists(local_dataset_dir):
+            # 使用 Dataset.from_file 直接加载 arrow 文件
+            from datasets import Dataset
+            arrow_file = os.path.join(local_dataset_dir, 'test', 'data-00000-of-00001.arrow')
+            if os.path.exists(arrow_file):
+                dataset = Dataset.from_file(arrow_file)
+                prompt_key = 'Prompt'
+                print(f"[Info] 使用本地数据集: {arrow_file}, 大小: {len(dataset)}")
+            else:
+                # 备用：尝试 load_from_disk
+                from datasets import load_from_disk
+                dataset = load_from_disk(os.path.abspath(local_dataset_dir))['test']
+                prompt_key = 'Prompt'
+        elif os.path.exists(local_prompts_file):
+            # 备用：使用 prompts.txt 文件
             with open(local_prompts_file, 'r') as f:
                 prompts = [line.strip() for line in f if line.strip()]
             dataset = [{'Prompt': p} for p in prompts]
             prompt_key = 'Prompt'
         else:
+            # 从网络加载
             dataset = load_dataset(dataset)['test']
             prompt_key = 'Prompt'
 

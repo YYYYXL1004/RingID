@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument('--save_root_dir', type=str, default='./runs')
 
     group = parser.add_argument_group('trials parameters')
-    parser.add_argument('--gpu_id', default=7, type=int)
+    parser.add_argument('--gpu_id', default=3, type=int)
     parser.add_argument('--trials', type=int, default=100, help='total number of trials to run')
     parser.add_argument('--fix_gt', type=int, default=1, help='use watermark after discarding the imag part on space domain as gt.')
     parser.add_argument('--time_shift', type=int, default=1, help='use time-shift')
