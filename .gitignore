@@ -2,9 +2,16 @@
 windsurfchat
 .windsurf_chat_port
 .windsurfrules
+63bf475f1cbb4568/
 
 models/
 sd_prompts_dataset/
+RingID/
+Data/
+docs/MEMBER_B_PLAN.md
+docs/RINGID_CODE_EXPLAINED.md
+docs/TROUBLESHOOTING.md
+delivery
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
