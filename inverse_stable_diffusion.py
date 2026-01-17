@@ -2,6 +2,7 @@ from functools import partial
 from typing import Callable, List, Optional, Union, Tuple
 
 import torch
+from utils import fft, ifft
 from transformers import CLIPFeatureExtractor, CLIPTextModel, CLIPTokenizer
 
 from diffusers.models import AutoencoderKL, UNet2DConditionModel
@@ -111,6 +112,10 @@ class InversableStableDiffusionPipeline(ModifiedStableDiffusionPipeline):
         callback: Optional[Callable[[int, int, torch.FloatTensor], None]] = None,
         callback_steps: Optional[int] = 1,
         reverse_process: True = False,
+        deflection_pattern: Optional[torch.FloatTensor] = None,
+        deflection_mask: Optional[torch.FloatTensor] = None,
+        deflection_steps: int = 5,
+        deflection_strength: float = 0.3,
         **kwargs,
     ):
         """ Generate image from text prompt and latents
@@ -182,6 +187,19 @@ class InversableStableDiffusionPipeline(ModifiedStableDiffusionPipeline):
                 alpha_tm1=alpha_prod_t_prev,
                 eps_xt=noise_pred,
             )
+            
+            # 频域路径偏转
+            if deflection_pattern is not None and i < deflection_steps:
+                if reverse_process:
+                    # inversion: 逆向补偿（减去偏转信号）
+                    latents = self._reverse_frequency_deflection(
+                        latents, deflection_pattern, deflection_mask, deflection_strength
+                    )
+                else:
+                    # generation: 正向偏转（加入偏转信号）
+                    latents = self._apply_frequency_deflection(
+                        latents, deflection_pattern, deflection_mask, deflection_strength
+                    )
         return latents
 
     
@@ -199,3 +217,29 @@ class InversableStableDiffusionPipeline(ModifiedStableDiffusionPipeline):
         image = (image / 2 + 0.5).clamp(0, 1)
         image = image.cpu().permute(0, 2, 3, 1).numpy()
         return image
+
+    def _apply_frequency_deflection(self, latents, pattern, mask, strength):
+        """
+        在频域对 latent 进行偏转（生成时使用）
+        """
+        orig_dtype = latents.dtype
+        latents_f32 = latents.float()  # 转为 float32 避免 ComplexHalf 警告
+        latents_fft = fft(latents_f32)
+        pattern_expanded = pattern.to(latents_fft.dtype).to(latents_fft.device)
+        if pattern_expanded.shape[0] != latents_fft.shape[0]:
+            pattern_expanded = pattern_expanded.expand(latents_fft.shape[0], -1, -1, -1)
+        latents_fft = latents_fft + pattern_expanded * strength
+        return ifft(latents_fft).real.to(orig_dtype)
+
+    def _reverse_frequency_deflection(self, latents, pattern, mask, strength):
+        """
+        逆向偏转（检测时使用，补偿生成时的偏转）
+        """
+        orig_dtype = latents.dtype
+        latents_f32 = latents.float()  # 转为 float32 避免 ComplexHalf 警告
+        latents_fft = fft(latents_f32)
+        pattern_expanded = pattern.to(latents_fft.dtype).to(latents_fft.device)
+        if pattern_expanded.shape[0] != latents_fft.shape[0]:
+            pattern_expanded = pattern_expanded.expand(latents_fft.shape[0], -1, -1, -1)
+        latents_fft = latents_fft - pattern_expanded * strength
+        return ifft(latents_fft).real.to(orig_dtype)

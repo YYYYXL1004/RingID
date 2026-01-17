@@ -6,6 +6,7 @@ import PIL
 
 import torch
 from diffusers import StableDiffusionPipeline
+from utils import fft, ifft
 from diffusers.utils import logging, BaseOutput
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -57,6 +58,10 @@ class ModifiedStableDiffusionPipeline(StableDiffusionPipeline):
         watermarking_gamma: float = None,
         watermarking_delta: float = None,
         watermarking_mask: Optional[torch.BoolTensor] = None,
+        deflection_pattern: Optional[torch.FloatTensor] = None,
+        deflection_mask: Optional[torch.FloatTensor] = None,
+        deflection_steps: int = 5,
+        deflection_strength: float = 0.3,
     ):
         r"""
         Function invoked when calling the pipeline for generation.
@@ -182,6 +187,12 @@ class ModifiedStableDiffusionPipeline(StableDiffusionPipeline):
                 # compute the previous noisy sample x_t -> x_t-1
                 latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs).prev_sample
 
+                # 频域路径偏转（生成时）
+                if deflection_pattern is not None and i < deflection_steps:
+                    latents = self._apply_frequency_deflection(
+                        latents, deflection_pattern, deflection_mask, deflection_strength
+                    )
+
                 # call the callback, if provided
                 if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
                     progress_bar.update()
@@ -228,3 +239,16 @@ class ModifiedStableDiffusionPipeline(StableDiffusionPipeline):
             encoding = encoding_dist.mode()
         latents = encoding * 0.18215
         return latents
+
+    def _apply_frequency_deflection(self, latents, pattern, mask, strength):
+        """
+        在频域对 latent 进行偏转（生成时使用）
+        """
+        orig_dtype = latents.dtype
+        latents_f32 = latents.float()  # 转为 float32 避免 ComplexHalf 警告
+        latents_fft = fft(latents_f32)
+        pattern_expanded = pattern.to(latents_fft.dtype).to(latents_fft.device)
+        if pattern_expanded.shape[0] != latents_fft.shape[0]:
+            pattern_expanded = pattern_expanded.expand(latents_fft.shape[0], -1, -1, -1)
+        latents_fft = latents_fft + pattern_expanded * strength
+        return ifft(latents_fft).real.to(orig_dtype)

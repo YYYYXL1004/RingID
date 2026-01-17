@@ -477,3 +477,44 @@ def get_dataset(dataset):
             prompt_key = 'Prompt'
 
     return dataset, prompt_key
+
+
+def generate_universal_deflection_pattern(
+    device,
+    shape=(1, 4, 64, 64),
+    radius=RADIUS,
+    radius_cutoff=RADIUS_CUTOFF,
+    deflection_value=1.0,
+    seed=42,
+):
+    """
+    生成通用偏转信号（频域环形区域）
+    
+    Args:
+        device: torch device
+        shape: latent shape (B, C, H, W)
+        radius: 外环半径
+        radius_cutoff: 内环半径
+        deflection_value: 偏转值
+        seed: 随机种子（保证可复现）
+    
+    Returns:
+        deflection_pattern: 频域偏转 pattern [1, C, H, W] (complex)
+        deflection_mask: 偏转区域 mask [H, W] (bool)
+    """
+    h, w = shape[-2], shape[-1]
+    mask = torch.tensor(ring_mask(size=h, r_out=radius, r_in=radius_cutoff)).to(device)
+    
+    # 使用固定种子生成可复现的偏转 pattern
+    torch.manual_seed(seed)
+    random_latent = torch.randn(1, shape[1], h, w, device=device)
+    deflection_pattern = fft(random_latent)
+    
+    # 只保留环形区域的值，其他区域置零
+    deflection_pattern = deflection_pattern * mask.unsqueeze(0).unsqueeze(0)
+    
+    # 归一化后乘以 deflection_value
+    if deflection_pattern.abs().max() > 0:
+        deflection_pattern = deflection_pattern / deflection_pattern.abs().max() * deflection_value
+    
+    return deflection_pattern, mask

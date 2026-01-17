@@ -39,13 +39,20 @@ def parse_args():
     parser.add_argument('--save_root_dir', type=str, default='./runs')
 
     group = parser.add_argument_group('trials parameters')
-    parser.add_argument('--gpu_id', default=3, type=int)
+    parser.add_argument('--gpu_id', default=2, type=int)
     parser.add_argument('--trials', type=int, default=100, help='total number of trials to run')
     parser.add_argument('--fix_gt', type=int, default=1, help='use watermark after discarding the imag part on space domain as gt.')
     parser.add_argument('--time_shift', type=int, default=1, help='use time-shift')
     parser.add_argument('--time_shift_factor', type=float, default=1.0, help='factor to scale the value after time-shift')
     parser.add_argument('--assigned_keys', type=int, default=-1, help='number of assigned keys, -1 for all possible kyes')
     parser.add_argument('--channel_min', type=int, default=1, help='only for heterogeous watermark, when match gt, take min among channels as the result')
+
+    # 路径偏转参数
+    group = parser.add_argument_group('deflection parameters')
+    parser.add_argument('--use_deflection', type=int, default=0, help='1 to enable frequency deflection')
+    parser.add_argument('--deflection_steps', type=int, default=5, help='number of steps to apply deflection')
+    parser.add_argument('--deflection_strength', type=float, default=0.3, help='deflection strength')
+    parser.add_argument('--deflection_seed', type=int, default=42, help='seed for universal deflection pattern')
 
     args = parser.parse_args()
 
@@ -175,6 +182,18 @@ def main(args):
     
     key_indices_to_evaluate = np.random.choice(ring_capacity, size = args.trials, replace = True).tolist()
 
+    # 生成通用偏转信号
+    universal_deflection, deflection_mask = None, None
+    if args.use_deflection:
+        universal_deflection, deflection_mask = generate_universal_deflection_pattern(
+            device=device,
+            shape=(1, 4, original_latents_shape[-2], original_latents_shape[-1]),
+            radius=RADIUS,
+            radius_cutoff=RADIUS_CUTOFF,
+            seed=args.deflection_seed,
+        )
+        print(f'[Info] Deflection enabled: steps={args.deflection_steps}, strength={args.deflection_strength}')
+
     # # Run Evaluation
 
     print(f'[Info] Ring capacity = {ring_capacity}')
@@ -213,6 +232,10 @@ def main(args):
             height=args.image_length,
             width=args.image_length,
             latents=batched_latents,
+            deflection_pattern=universal_deflection,
+            deflection_mask=deflection_mask,
+            deflection_steps=args.deflection_steps if args.use_deflection else 0,
+            deflection_strength=args.deflection_strength,
         ).images
         no_watermark_image, Fourier_watermark_image = generated_images[0], generated_images[1]
 
@@ -253,6 +276,10 @@ def main(args):
                 text_embeddings=torch.cat([text_embeddings] * len(Fourier_watermark_image_latents)),
                 guidance_scale=1,
                 num_inference_steps=args.test_num_inference_steps,
+                deflection_pattern=universal_deflection,
+                deflection_mask=deflection_mask,
+                deflection_steps=args.deflection_steps if args.use_deflection else 0,
+                deflection_strength=args.deflection_strength,
             )
 
         Fourier_watermark_reconstructed_latents_fft = fft(Fourier_watermark_reconstructed_latents)  # [N，c, h, w]

@@ -4,14 +4,19 @@
 
 ## 项目背景
 
-本项目是**成员 B** 的实验代码，用于验证成员 A 在 Tree-Ring 上发现的**双频带策略**在 RingID 多供应商识别场景下是否同样有效。
+本项目是**成员 B** 的实验代码，用于：
+1. 验证成员 A 在 Tree-Ring 上发现的**双频带策略**在 RingID 多供应商识别场景下是否同样有效
+2. 探索密钥容量极限
+3. 探索 PAI 路径偏转在多密钥识别场景下的效果
 
 | 阶段 | 负责人 | 研究内容 | 场景 |
 |------|--------|----------|------|
-| 假设提出 | 成员 A | 双频带策略提升鲁棒性 | Tree-Ring |
-| **假设验证** | **成员 B** | 双频带策略是否同样有效？ | **RingID** |
+| 假设提出 | 成员 A | 双频带策略 + PAI 偏转 | Tree-Ring (单密钥验证) |
+| **假设验证** | **成员 B** | 双频带验证 + 容量探索 + 偏转探索 | **RingID (多密钥识别)** |
 
 ## 核心实验结果
+
+### 1. 频段策略对比
 
 | 策略 | Clean | C&S75 | 平均准确率 |
 |------|-------|-------|------------|
@@ -20,6 +25,32 @@
 | **双频带 (R=3-14)** | 100% | **90%** | **98.3%** ✓ |
 
 **结论**：双频带策略在多供应商识别场景下**同样表现最优**，验证了其普适性。
+
+### 2. 密钥容量测试
+
+| 密钥数 | 平均准确率 | C&S75 |
+|--------|------------|-------|
+| 5 | 98.3% | 90% |
+| 10 | 96.4% | 78% |
+| 20 | 95.4% | 71% |
+| 30 | 93.4% | 58% |
+| 50 | 91.7% | 48% |
+
+**结论**：实用密钥容量为 **20-30** 个。
+
+### 3. PAI 路径偏转探索 🆕
+
+| 配置 | C&S75 | 平均准确率 |
+|------|-------|------------|
+| **Baseline (无偏转)** | **90%** | **98.3%** |
+| 偏转 (s=5, m=0.1) | 84% | 97.4% |
+
+**关键发现**：在多密钥识别场景下，路径偏转（抗篡改增强）与识别准确率存在 **trade-off**。
+
+| 场景 | 偏转效果 |
+|------|----------|
+| A: 单密钥验证 | ✅ 有益（增强抗篡改） |
+| B: 多密钥识别 | ❌ 无益（降低准确率） |
 
 ## 环境配置
 
@@ -49,6 +80,15 @@ python scripts/frequency_band_test.py --gpu 3
 python scripts/key_capacity_test.py --keys 5,10,20,30,50 --gpu 3
 ```
 
+### PAI 路径偏转实验
+```bash
+# Baseline
+python identify.py --use_deflection 0 --assigned_keys 5 --trials 100 --gpu_id 3
+
+# 偏转实验
+python identify.py --use_deflection 1 --deflection_steps 5 --deflection_strength 0.1 --assigned_keys 5 --trials 100 --gpu_id 3
+```
+
 ## 项目结构
 
 ```
@@ -60,6 +100,7 @@ RingID/
 ├── scripts/
 │   ├── frequency_band_test.py  # 频段对比实验
 │   ├── key_capacity_test.py    # 密钥容量测试
+│   ├── run_deflection_experiments.sh  # PAI 偏转实验批量脚本
 │   └── generate_confusion_matrix.py
 ├── docs/
 │   ├── Identifiability_CN.md   # 中文报告
@@ -78,5 +119,6 @@ RingID/
 
 - [RingID Paper](http://arxiv.org/abs/2404.14055)
 - [Tree-Ring Watermark](https://github.com/YuxinWenRick/tree-ring-watermark)
+- [PAI Paper](https://arxiv.org/abs/2601.06639) - Path-Aware Injection for Watermark
 
 
